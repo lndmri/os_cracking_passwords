@@ -1,2 +1,2 @@
-# os_project2
-CrackingPasswrods
+# os_project2 Cracking Passwords
+
