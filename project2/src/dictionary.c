@@ -44,23 +44,37 @@ node* check(char *word)
     return NULL;
 }
 
-// Hashes word to an index of out hash table
-unsigned int hash(const char* word)
-{
-    // word is a hex word
-    uint64_t hash_value = 0;
 
-    // Convert hex string to an integer safely
+// // OLD HASH FUNCTION USED
+// // Hashes word to an index of out hash table
+// unsigned int hash(const char* word)
+// {
+//     // word is a hex word
+//     uint64_t hash_value = 0;
+
+//     // Convert hex string to an integer safely
+//     while (*word) {
+//         char c = *word++;
+//         hash_value = (hash_value << 4) | 
+//                         ((c >= '0' && c <= '9') ? (c - '0') :
+//                         (c >= 'a' && c <= 'f') ? (c - 'a' + 10) :
+//                         (c >= 'A' && c <= 'F') ? (c - 'A' + 10) : 0);
+//     }
+
+//     // Modulo operation to fit into available buckets
+//     return (unsigned int)(hash_value % N);
+// }
+
+// New Hash Function 
+
+// new hash function
+unsigned int hash(const char *word) {
+    uint32_t hash = 2166136261u; // FNV-1a hash initial value
     while (*word) {
-        char c = *word++;
-        hash_value = (hash_value << 4) | 
-                        ((c >= '0' && c <= '9') ? (c - '0') :
-                        (c >= 'a' && c <= 'f') ? (c - 'a' + 10) :
-                        (c >= 'A' && c <= 'F') ? (c - 'A' + 10) : 0);
+        hash ^= (unsigned char)*word++;
+        hash *= 16777619;
     }
-
-    // Modulo operation to fit into available buckets
-    return (unsigned int)(hash_value % N);
+    return hash % N;
 }
 
 // Loads dictionary into memory, returning true if successful, else false
