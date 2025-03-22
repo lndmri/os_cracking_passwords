@@ -10,9 +10,9 @@
 
 // KEEP is defined in dictionary.h
 #define MAX_LEN 256
-#define NUM_THREADS 4
+#define NUM_THREADS 9
 
-pthread_mutex_t hash_table_lock = PTHREAD_MUTEX_INITIALIZER;
+// pthread_mutex_t hash_table_lock = PTHREAD_MUTEX_INITIALIZER;
 
 typedef struct thread_content
 {
@@ -59,13 +59,13 @@ void *routine_crack_hashed_passwords(void *arg)
 				sprintf(&hex_hash[2*j], "%02x", hash_v[j]); // converting the binary hash into hex hash
 			hex_hash[2*KEEP] = '\0';
 
-            pthread_mutex_lock(&hash_table_lock);
+            // pthread_mutex_lock(&hash_table_lock);
             node *res = check(hex_hash);
             if (res && res->password == NULL) {
                 res->password = strdup(password);
                 res->alg = algs[i];
             }
-            pthread_mutex_unlock(&hash_table_lock);
+            // pthread_mutex_unlock(&hash_table_lock);
 
             free(hash_v);
         }
