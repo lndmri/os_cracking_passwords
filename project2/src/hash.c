@@ -58,6 +58,7 @@ struct thread_args {
     int start_idx;
     int end_idx;
     char **dictionary;
+    unsigned int *pw_lengths;
     struct cracked_hash *cracked_hashes;
     int n_hashed;
 };
@@ -76,11 +77,14 @@ static void *crack_segment(void *arg) {
     int n_hashed = args->n_hashed;
 
     for (int idx = start; idx < end; idx++) {
+        unsigned char computed[KEEP];
         char *password = dictionary[idx];
         unsigned int pw_len = (unsigned int)strlen(password);
 
         for (int ai = 0; ai < n_algs; ai++) {
-            unsigned char *computed = fn[ai]((unsigned char *)password, pw_len);
+            unsigned char *digest = fn[ai]((unsigned char *)password, pw_len);
+            memcpy(computed, digest, KEEP);
+            free(digest);
 
             // table lookup
             unsigned int h = hash_digest(computed);
@@ -89,31 +93,27 @@ static void *crack_segment(void *arg) {
             while (node) {
                 if (memcmp(node->target, computed, KEEP) == 0) {
                     int j = node->index; // cracked_hashes
-                    pthread_mutex_lock(&entry_locks[j]);
-                    //////////////////////////////////////////////////////////////////////////////////////
-                    //   1. the hash is not yet cracked => fill in                                      //
-                    //   2. the hash is cracked => possibly override if this password's index is lower  // 
-                    //////////////////////////////////////////////////////////////////////////////////////
-                    if (cracked_hashes[j].password == NULL) {
-                        cracked_hashes[j].password   = strdup(password);
-                        cracked_hashes[j].alg        = algs[ai];
-                        cracked_hashes[j].dict_index = idx;
-                    } else {
-                        // already cracked
-                        if (idx < cracked_hashes[j].dict_index) {
-                            free(cracked_hashes[j].password);
+
+                    if (pthread_mutex_trylock(&entry_locks[j]) == 0) {
+                        //////////////////////////////////////////////////////////////////////////////////////
+                        //   1. the hash is not yet cracked => fill in                                      //
+                        //   2. the hash is cracked => possibly override if this password's index is lower  // 
+                        //////////////////////////////////////////////////////////////////////////////////////
+                        if (cracked_hashes[j].password == NULL || idx < cracked_hashes[j].dict_index) {
+                            if (cracked_hashes[j].password) {
+                                free(cracked_hashes[j].password);
+                            }
                             cracked_hashes[j].password   = strdup(password);
                             cracked_hashes[j].alg        = algs[ai];
                             cracked_hashes[j].dict_index = idx;
                         }
+                        pthread_mutex_unlock(&entry_locks[j]);
                     }
-
-                    pthread_mutex_unlock(&entry_locks[j]);
                 }
                 node = node->next;
             } // end (node)
 
-            free(computed);
+            
         } // end (ai)
     } // end (idx)
 
@@ -151,6 +151,7 @@ void crack_hashed_passwords(char *password_list, char *hashed_list, char *output
     int n_hashed = 0, n_passwords = 0;
     struct cracked_hash *cracked_hashes;
     char **dictionary;
+    unsigned int *pw_lengths;
 
     // 1. read the target hashes into cracked_hashes
     fp = fopen(hashed_list, "r");
@@ -182,7 +183,8 @@ void crack_hashed_passwords(char *password_list, char *hashed_list, char *output
     rewind(fp);
 
     dictionary = (char**)malloc(n_passwords * sizeof(char*));
-    assert(dictionary != NULL);
+    pw_lengths = (unsigned int*)malloc(n_passwords * sizeof(unsigned int));
+    assert(dictionary != NULL && pw_lengths != NULL);
     for (int i = 0; i < n_passwords; i++) {
         fscanf(fp, "%255s", buffer);
         dictionary[i] = strdup(buffer);
